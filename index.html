@@ -1,1209 +1,516 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Comprehensive Regex & FA Tool (Fixed)</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regex to Finite Automata Converter</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      body {
-        font-family: "Inter", sans-serif;
-        background-color: #0a0a0a;
-      }
-      .glow-text {
-        text-shadow: 0 0 8px currentColor;
-      }
-      canvas {
-        cursor: grab;
-        transition: background-color 0.3s;
-        border-radius: 0.75rem;
-      }
-      canvas:active {
-        cursor: grabbing;
-      }
-      #tooltip {
-        position: absolute;
-        display: none;
-        background-color: rgba(0, 0, 0, 0.85);
-        color: white;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 12px;
-        pointer-events: none;
-        z-index: 100;
-        border: 1px solid #4a5568;
-        white-space: pre-wrap;
-      }
-      .tab-button {
-        transition: all 0.2s;
-      }
-      .tab-button.active {
-        background-color: #0e7490;
-        color: white;
-      }
-      .tab-content {
-        display: none;
-      }
-      .tab-content.active {
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-      }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        .automaton-container {
+            position: relative;
+            width: 100%;
+            min-height: 400px;
+            overflow: auto;
+            border: 1px solid #374151; /* border-gray-700 */
+            border-radius: 0.5rem;
+        }
+        .state {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            border: 2px solid #4B5563; /* border-gray-600 */
+            background-color: #1F2937; /* bg-gray-800 */
+            z-index: 10;
+            transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s, border-color 0.3s;
+            cursor: grab;
+            user-select: none; /* Prevent text selection while dragging */
+        }
+        .state:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(96, 165, 250, 0.7);
+        }
+        .state.start::before {
+            content: '▶';
+            position: absolute;
+            left: -25px;
+            font-size: 20px;
+            color: #22C55E; /* text-green-500 */
+        }
+        .state.final {
+            border-width: 3px;
+            border-color: #3B82F6; /* border-blue-500 */
+        }
+        .state.final.active {
+             box-shadow: 0 0 15px #3B82F6, 0 0 15px #FBBF24;
+        }
+        .state.active {
+            background-color: #FBBF24; /* amber-400 */
+            color: #111827;
+            border-color: #FBBF24;
+        }
+        .transition-path {
+            transition: stroke 0.3s;
+        }
+        .transition-path.active {
+            stroke: #FBBF24; /* amber-400 */
+            stroke-width: 3px;
+        }
+        .transition-label {
+            position: absolute;
+            background-color: #374151; /* bg-gray-700 */
+            color: #D1D5DB; /* text-gray-300 */
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 11;
+            transform: translate(-50%, -50%);
+            transition: background-color 0.3s, color 0.3s;
+            pointer-events: none; /* So it doesn't interfere with dragging */
+        }
+        .transition-label.active {
+            background-color: #FBBF24;
+            color: #111827;
+        }
+        .result-box {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .result-box.accepted {
+            background-color: #10B981; /* bg-emerald-500 */
+            color: white;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+        }
+        .result-box.rejected {
+            background-color: #EF4444; /* bg-red-500 */
+            color: white;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1F2937; }
+        ::-webkit-scrollbar-thumb { background: #4B5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6B7280; }
     </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body
-    class="bg-gray-900 text-gray-100 min-h-screen flex flex-col items-center p-4"
-  >
-    <div id="tooltip"></div>
+</head>
+<body class="text-gray-200 p-4 sm:p-6 md:p-8">
 
-    <div
-      class="w-full max-w-7xl bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl shadow-2xl p-6 md:p-8 space-y-6"
-    >
-      <header class="text-center">
-        <h1 class="text-3xl md:text-4xl font-bold text-white-400 glow-text">
-          Regex → Finite Automata Tool
-        </h1>
-        <p class="text-gray-400 mt-2">
-          A comprehensive, interactive tool for automata theory.
-        </p>
-      </header>
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">
+                Finite Automata Visualizer
+            </h1>
+            <p class="mt-2 text-gray-400">From Regular Expression to Minimized DFA with Interactive Diagrams</p>
+        </header>
 
-      <!-- TABS -->
-      <div
-        class="flex justify-center bg-gray-700/50 rounded-lg p-1 border border-gray-600"
-      >
-        <button
-          id="tab-re-to-fa"
-          class="tab-button active flex-1 py-2 px-4 rounded-md font-semibold"
-        >
-          Regex → FA
-        </button>
-        <!-- <button
-          id="tab-fa-to-re"
-          class="tab-button flex-1 py-2 px-4 rounded-md font-semibold"
-        >
-          FA → Regex
-        </button> -->
-      </div>
-
-      <div class="flex flex-col lg:flex-row gap-6">
-        <!-- LEFT CONTROL PANEL -->
-        <div
-          class="w-full lg:w-1/4 bg-gray-700/50 border border-gray-600 p-6 rounded-xl space-y-6 self-start"
-        >
-          <!-- TAB 1 CONTROLS -->
-          <div id="controls-re-to-fa" class="tab-content active">
-            <div>
-              <label
-                for="regex"
-                class="block text-sm font-medium text-gray-300 mb-2"
-                >Regular Expression</label
-              >
-              <input
-                id="regex"
-                type="text"
-                class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-gray-100 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"
-                value="(a+b)*"
-              />
+        <!-- Input Section -->
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
+            <label for="regex" class="block text-sm font-medium text-gray-300 mb-2">Regular Expression (use '|' for OR, '*' for Kleene star, '+' for one or more, '?' for zero or one)</label>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <input type="text" id="regex" class="flex-grow bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400" placeholder="e.g., (a|b)+a?b">
+                <button id="convertBtn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500">
+                    Visualize Automata
+                </button>
             </div>
-            <div>
-              <label
-                for="testString"
-                class="block text-sm font-medium text-gray-300 mb-2"
-                >Test String (Live Validation)</label
-              >
-              <input
-                id="testString"
-                type="text"
-                class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-gray-100 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"
-                value="abab"
-              />
-            </div>
-            <button
-              id="run"
-              class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 active:scale-100"
-            >
-              Build Automata
-            </button>
-            <div class="text-center">
-              <p class="text-sm text-gray-400">Validation Result:</p>
-              <div
-                id="result"
-                class="font-bold text-2xl h-10 flex items-center justify-center"
-              ></div>
-              <div id="result-note" class="text-xs text-gray-400 h-4"></div>
-            </div>
-            <div
-              id="error-message"
-              class="text-red-400 text-sm text-center h-5"
-            ></div>
-          </div>
-
-          <!-- TAB 2 CONTROLS -->
-          <div id="controls-fa-to-re" class="tab-content">
-            <label
-              for="faInput"
-              class="block text-sm font-medium text-gray-300 mb-2"
-              >Define Finite Automaton</label
-            >
-            <textarea
-              id="faInput"
-              rows="8"
-              class="w-full bg-gray-900 border border-gray-600 rounded-lg p-4 font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-            >
-states: q0, q1
-alphabet: a, b
-start: q0
-final: q1
-transitions:
-q0, a, q0
-q0, b, q1</textarea
-            >
-            <button
-              id="convert-fa"
-              class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-purple-500/50 transform hover:scale-105 active:scale-100"
-            >
-              Convert to Regex
-            </button>
-            <div class="text-center">
-              <p class="text-sm text-gray-400">Resulting Regex:</p>
-              <p
-                id="re-output"
-                class="font-mono bg-gray-900 rounded-md p-2 text-purple-300 w-full text-center h-16 flex items-center justify-center break-all"
-              ></p>
-            </div>
-          </div>
+        </div>
+        
+        <!-- String Test Section -->
+        <div id="testSection" class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8" style="display: none;">
+             <label for="testString" class="block text-sm font-medium text-gray-300 mb-2">Test String</label>
+             <div class="flex flex-col sm:flex-row gap-4">
+                <input type="text" id="testString" class="flex-grow bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400" placeholder="e.g., aabb">
+                <button id="checkBtn" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500">
+                    Check
+                </button>
+             </div>
+             <div id="stringResult" class="result-box mt-4" style="display: none;"></div>
         </div>
 
-        <!-- RIGHT VISUALIZATION PANEL -->
-        <div class="w-full lg:w-3/4">
-          <!-- TAB 1 VIS -->
-          <div id="viz-re-to-fa" class="tab-content active">
-            <div class="grid grid-cols-1 gap-6">
-              <div class="bg-gray-900/70 border border-gray-700 rounded-xl p-4">
-                <div class="flex justify-center items-center gap-3 mb-2">
-                  <h2
-                    class="text-center text-xl font-semibold text-cyan-300 glow-text"
-                  >
-                    1. NFA
-                  </h2>
-                  <button
-                    class="play-animation-btn p-1.5 rounded-full bg-gray-600 hover:bg-gray-500 transition"
-                    data-viz-key="nfa"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5 text-white"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <canvas id="nfaCanvas"></canvas>
-              </div>
-              <div class="bg-gray-900/70 border border-gray-700 rounded-xl p-4">
-                <div class="flex justify-center items-center gap-3 mb-2">
-                  <h2
-                    class="text-center text-xl font-semibold text-teal-300 glow-text"
-                  >
-                    2. DFA
-                  </h2>
-                  <button
-                    class="play-animation-btn p-1.5 rounded-full bg-gray-600 hover:bg-gray-500 transition"
-                    data-viz-key="dfa"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5 text-white"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <canvas id="dfaCanvas"></canvas>
-              </div>
-              <div class="bg-gray-900/70 border border-gray-700 rounded-xl p-4">
-                <div class="flex justify-center items-center gap-3 mb-2">
-                  <h2
-                    class="text-center text-xl font-semibold text-purple-300 glow-text"
-                  >
-                    3. Minimized DFA
-                  </h2>
-                  <button
-                    class="play-animation-btn p-1.5 rounded-full bg-gray-600 hover:bg-gray-500 transition"
-                    data-viz-key="minimizedDfa"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5 text-white"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <canvas id="minimizedDfaCanvas"></canvas>
-              </div>
-            </div>
-          </div>
 
-          <!-- TAB 2 VIS -->
-          <div id="viz-fa-to-re" class="tab-content">
-            <div class="bg-gray-900/70 border border-gray-700 rounded-xl p-4">
-              <div class="flex justify-between items-center mb-2">
-                <h2
-                  class="text-center text-xl font-semibold text-purple-300 glow-text"
-                >
-                  State Elimination
-                </h2>
-                <div class="flex items-center gap-4">
-                  <button
-                    id="prev-step"
-                    class="bg-gray-600 hover:bg-gray-500 p-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-6 w-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                  </button>
-                  <span id="step-counter" class="text-gray-400"
-                    >Step 0 / 0</span
-                  >
-                  <button
-                    id="next-step"
-                    class="bg-gray-600 hover:bg-gray-500 p-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-6 w-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
+        <!-- Automata Display Section -->
+        <div class="space-y-8">
+            <div id="nfaSection" class="bg-gray-800 p-6 rounded-lg shadow-lg" style="display: none;">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                    <h2 class="text-2xl font-semibold">NFA (Thompson's Construction)</h2>
+                    <button id="animateNfaBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">Animate</button>
                 </div>
-              </div>
-              <canvas id="gnfaCanvas"></canvas>
+                <div id="nfa-container" class="automaton-container"></div>
             </div>
-          </div>
+            <div id="dfaSection" class="bg-gray-800 p-6 rounded-lg shadow-lg" style="display: none;">
+                 <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                    <h2 class="text-2xl font-semibold">DFA (Subset Construction)</h2>
+                    <button id="animateDfaBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">Animate</button>
+                </div>
+                <div id="dfa-container" class="automaton-container"></div>
+            </div>
+            <div id="minDfaSection" class="bg-gray-800 p-6 rounded-lg shadow-lg" style="display: none;">
+                 <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                    <h2 class="text-2xl font-semibold">Minimized DFA</h2>
+                    <button id="animateMinDfaBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">Animate</button>
+                </div>
+                <div id="min-dfa-container" class="automaton-container"></div>
+            </div>
         </div>
-      </div>
     </div>
 
     <script>
-      // ---------- Utilities ----------
-      function brighten(hex, k = 1) {
-        const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        if (!m) return hex;
-        const f = 1 / (0.7 * k);
-        let [r, g, b] = [
-          parseInt(m[1], 16),
-          parseInt(m[2], 16),
-          parseInt(m[3], 16),
-        ];
-        r = Math.min(255, Math.round(r * f));
-        g = Math.min(255, Math.round(g * f));
-        b = Math.min(255, Math.round(b * f));
-        return `rgb(${r},${g},${b})`;
-      }
-      const isAtomic = (s) => s === "ε" || /^[a-zA-Z0-9]$/.test(s);
-      const cat = (a, b) =>
-        a === "ε"
-          ? b
-          : b === "ε"
-          ? a
-          : `${isAtomic(a) ? a : `(${a})`}${isAtomic(b) ? b : `(${b})`}`;
-      const star = (s) => `(${s})*`;
-      const alt = (a, b) => (a === "∅" ? b : b === "∅" ? a : `(${a}|${b})`);
+        // --- GLOBAL STATE ---
+        let nfa, dfa, minDfa, alphabet;
+        const statePositions = { nfa: {}, dfa: {}, minDfa: {} };
+        const EPSILON = 'ε';
+        let stateCounter = 0;
 
-      // ---------- Data Structures ----------
-      let stateCounter = 0;
-      class State {
-        constructor(label) {
-          this.id = stateCounter++;
-          this.label = label || this.id;
-          this.isAccept = false;
-          this.x = 0;
-          this.y = 0;
-        }
-      }
-      class Transition {
-        constructor(from, to, symbol) {
-          this.from = from;
-          this.to = to;
-          this.symbol = symbol;
-        }
-      }
-      class NFA {
-        constructor(start, accept) {
-          this.startState = start;
-          this.acceptState = accept;
-          this.states = new Set([start, accept]);
-          this.transitions = [];
-          this.alphabet = new Set();
-        }
-      }
-      class DFAState {
-        constructor(stateSet, isMinimized = false) {
-          this.id = stateCounter++;
-          this.isMinimized = isMinimized;
-          this.x = 0;
-          this.y = 0;
-          const stateArray = Array.from(stateSet);
-          if (isMinimized) {
-            this.dfaStates = stateSet;
-            this.isAccept = stateArray.some((s) => s.isAccept);
-            this.label = `M${this.id}`;
-            this.tooltip = `Represents DFA states:\n{${stateArray
-              .map((s) => s.label)
-              .join(", ")}}`;
-          } else {
-            this.nfaStates = stateSet;
-            this.isAccept = stateArray.some((s) => s.isAccept);
-            this.label = `{${stateArray
-              .map((s) => s.id)
-              .sort((a, b) => a - b)
-              .join(",")}}`;
-            this.tooltip = `Represents NFA states:\n{${stateArray
-              .map((s) => s.id)
-              .sort((a, b) => a - b)
-              .join(",")}}`;
-          }
-        }
-      }
-      class DFATransition {
-        constructor(from, to, symbol) {
-          this.from = from;
-          this.to = to;
-          this.symbol = symbol;
-        }
-      }
-      class DFA {
-        constructor() {
-          this.startState = null;
-          this.states = [];
-          this.transitions = [];
-          this.alphabet = new Set();
-        }
-      }
+        // --- CORE LOGIC ---
+        
+        /**
+         * Formats the regex by preprocessing operators like '+' and '?' and adding explicit concatenation dots.
+         * The '+' (one or more) and '?' (zero or one) operators are converted into equivalent expressions
+         * using the existing operators (*, |).
+         * e.g., a+ becomes aa*
+         * e.g., a? becomes (a|ε)
+         */
+        function formatRegex(regex) {
+            // Step 1: Pre-process for '+' (one or more) and '?' (zero or one) operators.
+            let preprocessedRegex = '';
+            for (let i = 0; i < regex.length; i++) {
+                const char = regex[i];
+                if ((char === '+' || char === '?') && preprocessedRegex.length > 0) {
+                    let operand = '';
+                    const lastCharOfProcessed = preprocessedRegex[preprocessedRegex.length - 1];
 
-      // ---------- Regex parsing ----------
-      function preprocessRegex(infix) {
-        let processed = infix.replace(/\+/g, "|"); // Treat + as union
-        return processed.replace(/\[(.*?)]/g, (match, content) => {
-          if (content.includes("-")) {
-            const [start, end] = content.split("-");
-            let expanded = "";
-            for (let i = start.charCodeAt(0); i <= end.charCodeAt(0); i++)
-              expanded += String.fromCharCode(i) + "|";
-            return `(${expanded.slice(0, -1)})`;
-          }
-          return `(${content.split("").join("|")})`;
+                    if (lastCharOfProcessed === ')') {
+                        // Operand is a group, e.g., (a|b). We need to find its matching opening parenthesis.
+                        let balance = 0;
+                        let j = preprocessedRegex.length - 1;
+                        for (; j >= 0; j--) {
+                            if (preprocessedRegex[j] === ')') balance++;
+                            if (preprocessedRegex[j] === '(') balance--;
+                            if (balance === 0) break;
+                        }
+                        operand = preprocessedRegex.substring(j);
+                        preprocessedRegex = preprocessedRegex.substring(0, j); // Remove operand from string
+                    } else {
+                        // Operand is a single character.
+                        operand = lastCharOfProcessed;
+                        preprocessedRegex = preprocessedRegex.slice(0, -1); // Remove operand from string
+                    }
+
+                    if (char === '+') { // Convert 'a+' to 'aa*'
+                        preprocessedRegex += operand + operand + '*';
+                    } else { // Convert 'a?' to '(a|ε)'
+                        preprocessedRegex += '(' + operand + '|' + EPSILON + ')';
+                    }
+                } else {
+                    preprocessedRegex += char;
+                }
+            }
+
+            // Step 2: Insert explicit concatenation operator '.'
+            let res = '';
+            for (let i = 0; i < preprocessedRegex.length; i++) {
+                res += preprocessedRegex[i];
+                if (i + 1 < preprocessedRegex.length) {
+                    const c1 = preprocessedRegex[i];
+                    const c2 = preprocessedRegex[i + 1];
+                    // A dot is needed between two characters, a char and '(', ')' and a char, ')' and '(', '*' and a char, '*' and '('.
+                    if (c1 !== '(' && c1 !== '|' && (c2.match(/[a-zA-Z0-9]/) || c2 === '(' || c2 === EPSILON)) {
+                         res += '.';
+                    }
+                }
+            }
+            return res;
+        }
+
+        function infixToPostfix(regex) { const precedence = { '|': 1, '.': 2, '*': 3 }; let output = ''; const stack = []; for (const char of regex) { if (char.match(/[a-zA-Z0-9]/) || char === EPSILON) { output += char; } else if (char === '(') { stack.push(char); } else if (char === ')') { while (stack.length > 0 && stack[stack.length - 1] !== '(') { output += stack.pop(); } stack.pop(); } else { while (stack.length > 0 && stack[stack.length - 1] !== '(' && precedence[char] <= precedence[stack[stack.length - 1]]) { output += stack.pop(); } stack.push(char); } } while (stack.length > 0) { output += stack.pop(); } return output; }
+        function postfixToNfa(postfix) { const stack = []; stateCounter = 0; for (const char of postfix) { if (char.match(/[a-zA-Z0-9]/) || char === EPSILON) { const startState = stateCounter++; const endState = stateCounter++; const nfa = { states: [startState, endState], transitions: { [startState]: { [char]: [endState] } }, startState: startState, finalStates: [endState] }; stack.push(nfa); } else if (char === '.') { const nfa2 = stack.pop(); const nfa1 = stack.pop(); const newTransitions = { ...nfa1.transitions, ...nfa2.transitions }; for (const final of nfa1.finalStates) { newTransitions[final] = { ...newTransitions[final], [EPSILON]: [...(newTransitions[final]?.[EPSILON] || []), nfa2.startState] }; } stack.push({ states: [...nfa1.states, ...nfa2.states], transitions: newTransitions, startState: nfa1.startState, finalStates: nfa2.finalStates }); } else if (char === '|') { const nfa2 = stack.pop(); const nfa1 = stack.pop(); const startState = stateCounter++; const endState = stateCounter++; const newTransitions = { ...nfa1.transitions, ...nfa2.transitions }; newTransitions[startState] = { [EPSILON]: [nfa1.startState, nfa2.startState] }; for (const final of [...nfa1.finalStates, ...nfa2.finalStates]) { newTransitions[final] = { ...newTransitions[final], [EPSILON]: [...(newTransitions[final]?.[EPSILON] || []), endState] }; } stack.push({ states: [startState, endState, ...nfa1.states, ...nfa2.states], transitions: newTransitions, startState: startState, finalStates: [endState] }); } else if (char === '*') { const nfa = stack.pop(); const startState = stateCounter++; const endState = stateCounter++; const newTransitions = { ...nfa.transitions }; newTransitions[startState] = { [EPSILON]: [nfa.startState, endState] }; for (const final of nfa.finalStates) { newTransitions[final] = { ...newTransitions[final], [EPSILON]: [...(newTransitions[final]?.[EPSILON] || []), nfa.startState, endState] }; } stack.push({ states: [startState, endState, ...nfa.states], transitions: newTransitions, startState: startState, finalStates: [endState] }); } } return stack[0]; }
+        function epsilonClosure(states, nfaTransitions) { const closure = new Set(states); const stack = [...states]; while (stack.length > 0) { const s = stack.pop(); const epsilonTransitions = nfaTransitions[s]?.[EPSILON] || []; for (const next of epsilonTransitions) { if (!closure.has(next)) { closure.add(next); stack.push(next); } } } return Array.from(closure).sort((a,b) => a-b); }
+        function nfaToDfa(nfa, alphabet) { const dfa = { states: [], transitions: {}, startState: null, finalStates: [] }; const dfaStateMap = new Map(); const initialNfaStates = epsilonClosure([nfa.startState], nfa.transitions); const initialDfaStateKey = initialNfaStates.join(','); const queue = [initialNfaStates]; dfaStateMap.set(initialDfaStateKey, 0); dfa.states.push(0); dfa.startState = 0; let dfaStateCounter = 1; while (queue.length > 0) { const currentNfaStates = queue.shift(); const currentDfaStateKey = currentNfaStates.join(','); const currentDfaState = dfaStateMap.get(currentDfaStateKey); if (currentNfaStates.some(s => nfa.finalStates.includes(s))) { dfa.finalStates.push(currentDfaState); } dfa.transitions[currentDfaState] = {}; for (const symbol of alphabet) { let nextNfaStates = []; for (const nfaState of currentNfaStates) { const transitions = nfa.transitions[nfaState]?.[symbol] || []; nextNfaStates.push(...transitions); } if (nextNfaStates.length > 0) { const nextNfaStatesClosure = epsilonClosure(nextNfaStates, nfa.transitions); const nextDfaStateKey = nextNfaStatesClosure.join(','); if (!dfaStateMap.has(nextDfaStateKey)) { dfaStateMap.set(nextDfaStateKey, dfaStateCounter); dfa.states.push(dfaStateCounter); queue.push(nextNfaStatesClosure); dfaStateCounter++; } dfa.transitions[currentDfaState][symbol] = dfaStateMap.get(nextDfaStateKey); } } } return dfa; }
+        function minimizeDfa(dfa, alphabet) { let partitions = [dfa.states.filter(s => dfa.finalStates.includes(s)), dfa.states.filter(s => !dfa.finalStates.includes(s))].filter(p => p.length > 0); let changed = true; while (changed) { changed = false; for (const symbol of alphabet) { const newPartitions = []; for (const partition of partitions) { if (partition.length <= 1) { newPartitions.push(partition); continue; } const splits = {}; for (const state of partition) { const targetState = dfa.transitions[state]?.[symbol]; const targetPartitionIndex = partitions.findIndex(p => p.includes(targetState)); const key = targetPartitionIndex !== -1 ? targetPartitionIndex : 'dead'; if (!splits[key]) splits[key] = []; splits[key].push(state); } const splitValues = Object.values(splits); if(splitValues.length > 1) changed = true; newPartitions.push(...splitValues); } partitions = newPartitions; } } const stateMap = {}; partitions.forEach((p, i) => p.forEach(s => stateMap[s] = i)); const minDfa = { states: partitions.map((_, i) => i), transitions: {}, startState: stateMap[dfa.startState], finalStates: [...new Set(dfa.finalStates.map(s => stateMap[s]))] }; partitions.forEach((partition, i) => { const representative = partition[0]; minDfa.transitions[i] = {}; for (const symbol of alphabet) { const target = dfa.transitions[representative]?.[symbol]; if (target !== undefined) { minDfa.transitions[i][symbol] = stateMap[target]; } } }); return minDfa; }
+        function simulateDfa(automaton, input) { let currentState = automaton.startState; for (const char of input) { if (automaton.transitions[currentState] && automaton.transitions[currentState][char] !== undefined) { currentState = automaton.transitions[currentState][char]; } else { return false; } } return automaton.finalStates.includes(currentState); }
+
+        // --- UI AND VISUALIZATION LOGIC ---
+
+        function drawAutomaton(automaton, containerId, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; // Clear previous drawing
+            
+            // Create SVG container for transitions
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', '100%');
+            svg.setAttribute('height', '100%');
+            svg.style.position = 'absolute';
+            svg.style.top = '0';
+            svg.style.left = '0';
+            svg.style.pointerEvents = 'none'; // Let mouse events pass through to states
+            container.appendChild(svg);
+            
+            const stateRadius = 24;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+
+            // Initial layout and state element creation
+            const sortedStates = [...new Set(automaton.states)].sort((a,b) => a-b);
+            sortedStates.forEach((state, i) => {
+                // Only set initial position if not already set (e.g., by dragging)
+                if (!statePositions[type][state]) {
+                    const angle = (i / sortedStates.length) * 2 * Math.PI;
+                    const radius = Math.min(containerWidth / 2 - 60, containerHeight / 2 - 60);
+                    const x = containerWidth / 2 + radius * Math.cos(angle);
+                    const y = containerHeight / 2 + radius * Math.sin(angle);
+                    statePositions[type][state] = { x, y };
+                }
+
+                const stateDiv = document.createElement('div');
+                stateDiv.className = 'state';
+                stateDiv.id = `${containerId}-state-${state}`;
+                stateDiv.textContent = state;
+                if (state === automaton.startState) stateDiv.classList.add('start');
+                if (automaton.finalStates.includes(state)) stateDiv.classList.add('final');
+                
+                const pos = statePositions[type][state];
+                stateDiv.style.left = `${pos.x - stateRadius}px`;
+                stateDiv.style.top = `${pos.y - stateRadius}px`;
+                
+                // Add drag functionality
+                makeDraggable(stateDiv, state, automaton, containerId, type);
+
+                container.appendChild(stateDiv);
+            });
+            
+            drawTransitions(automaton, containerId, type);
+        }
+        
+        function drawTransitions(automaton, containerId, type) {
+            const container = document.getElementById(containerId);
+            const svg = container.querySelector('svg');
+            const stateRadius = 24;
+
+            // Clear old transitions and labels
+            svg.innerHTML = ''; // Easiest way to clear
+            container.querySelectorAll('.transition-label').forEach(l => l.remove());
+
+            // Add marker definition to SVG
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', `arrow-${containerId}`);
+            marker.setAttribute('viewBox', '0 -5 10 10');
+            marker.setAttribute('refX', '8');
+            marker.setAttribute('refY', '0');
+            marker.setAttribute('markerWidth', '6');
+            marker.setAttribute('markerHeight', '6');
+            marker.setAttribute('orient', 'auto');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', 'M0,-5L10,0L0,5');
+            path.setAttribute('fill', '#9CA3AF');
+            marker.appendChild(path);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            const transitionGroups = {};
+            for (const fromState in automaton.transitions) {
+                for (const symbol in automaton.transitions[fromState]) {
+                    const toStates = Array.isArray(automaton.transitions[fromState][symbol]) ? automaton.transitions[fromState][symbol] : [automaton.transitions[fromState][symbol]];
+                    toStates.forEach(toState => {
+                        const key = `${fromState}-${toState}`;
+                        if (!transitionGroups[key]) transitionGroups[key] = [];
+                        transitionGroups[key].push(symbol);
+                    });
+                }
+            }
+
+            for (const key in transitionGroups) {
+                const [fromState, toState] = key.split('-').map(Number);
+                const symbols = transitionGroups[key].join(',');
+                const fromPos = statePositions[type][fromState];
+                const toPos = statePositions[type][toState];
+                if (!fromPos || !toPos) continue;
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                line.setAttribute('stroke', '#6B7280');
+                line.setAttribute('stroke-width', '2');
+                line.setAttribute('fill', 'none');
+                line.classList.add('transition-path');
+                line.id = `${containerId}-transition-${fromState}-${toState}-${symbols.replace(/[^a-zA-Z0-9]/g,'')}`;
+                
+                let d, labelPos;
+                if (fromState === toState) {
+                    d = `M ${fromPos.x - stateRadius*0.7}, ${fromPos.y - stateRadius*0.7} A ${stateRadius},${stateRadius} 0 1,1 ${fromPos.x + stateRadius*0.7}, ${fromPos.y - stateRadius*0.7}`;
+                    labelPos = { x: fromPos.x, y: fromPos.y - stateRadius * 2 };
+                } else {
+                    const dx = toPos.x - fromPos.x, dy = toPos.y - fromPos.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const nx = dx / dist, ny = dy / dist;
+                    const startX = fromPos.x + nx * stateRadius, startY = fromPos.y + ny * stateRadius;
+                    const endX = toPos.x - nx * (stateRadius + 5), endY = toPos.y - ny * (stateRadius + 5);
+                    
+                    const reverseKey = `${toState}-${fromState}`;
+                    if (transitionGroups[reverseKey]) {
+                        const curve = 30;
+                        d = `M ${startX},${startY} Q ${(startX+endX)/2 + ny*curve},${(startY+endY)/2 - nx*curve} ${endX},${endY}`;
+                        labelPos = { x: (startX+endX)/2 + ny*(curve+5), y: (startY+endY)/2 - nx*(curve+5) };
+                    } else {
+                        d = `M ${startX},${startY} L ${endX},${endY}`;
+                        labelPos = { x: (startX+endX)/2, y: (startY+endY)/2 };
+                    }
+                }
+                line.setAttribute('marker-end', `url(#arrow-${containerId})`);
+                line.setAttribute('d', d);
+                svg.appendChild(line);
+
+                const label = document.createElement('div');
+                label.className = 'transition-label';
+                label.id = `${containerId}-label-${fromState}-${toState}-${symbols.replace(/[^a-zA-Z0-9]/g,'')}`;
+                label.textContent = symbols;
+                label.style.left = `${labelPos.x}px`;
+                label.style.top = `${labelPos.y}px`;
+                container.appendChild(label);
+            }
+        }
+
+        function makeDraggable(element, stateId, automaton, containerId, type) {
+            let offsetX, offsetY;
+
+            function onMouseMove(e) {
+                e.preventDefault();
+                const containerRect = element.parentElement.getBoundingClientRect();
+                let newX = e.clientX - offsetX - containerRect.left;
+                let newY = e.clientY - offsetY - containerRect.top;
+                
+                // Constrain within the container
+                newX = Math.max(24, Math.min(containerRect.width - 24, newX));
+                newY = Math.max(24, Math.min(containerRect.height - 24, newY));
+
+                element.style.left = `${newX - 24}px`;
+                element.style.top = `${newY - 24}px`;
+                statePositions[type][stateId] = { x: newX, y: newY };
+                drawTransitions(automaton, containerId, type);
+            }
+
+            function onMouseUp() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            }
+
+            element.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                offsetX = e.clientX - element.getBoundingClientRect().left;
+                offsetY = e.clientY - element.getBoundingClientRect().top;
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+        }
+
+        function clearAllHighlights() { document.querySelectorAll('.state.active, .transition-path.active, .transition-label.active').forEach(el => el.classList.remove('active')); }
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        async function animateDfa(automaton, input, containerId) { clearAllHighlights(); let currentState = automaton.startState; document.getElementById(`${containerId}-state-${currentState}`)?.classList.add('active'); await sleep(800); for (const char of input) { const nextState = automaton.transitions[currentState]?.[char]; const symbols = Object.keys(automaton.transitions[currentState] || {}).find(s => automaton.transitions[currentState][s] === nextState); const pathEl = document.getElementById(`${containerId}-transition-${currentState}-${nextState}-${symbols?.replace(/[^a-zA-Z0-9]/g,'')}`); const labelEl = document.getElementById(`${containerId}-label-${currentState}-${nextState}-${symbols?.replace(/[^a-zA-Z0-9]/g,'')}`); if (pathEl) pathEl.classList.add('active'); if (labelEl) labelEl.classList.add('active'); await sleep(800); document.getElementById(`${containerId}-state-${currentState}`)?.classList.remove('active'); if (pathEl) pathEl.classList.remove('active'); if (labelEl) labelEl.classList.remove('active'); if (nextState === undefined) return false; currentState = nextState; document.getElementById(`${containerId}-state-${currentState}`)?.classList.add('active'); await sleep(800); } return automaton.finalStates.includes(currentState); }
+        async function animateNfa(automaton, input, containerId) { clearAllHighlights(); let currentStates = epsilonClosure([automaton.startState], automaton.transitions); currentStates.forEach(s => document.getElementById(`${containerId}-state-${s}`)?.classList.add('active')); await sleep(800); for(const char of input) { let nextStatesDirect = []; for(const state of currentStates) { const transitions = automaton.transitions[state]?.[char] || []; for(const next of transitions) { nextStatesDirect.push(next); const symbols = char; document.getElementById(`${containerId}-transition-${state}-${next}-${symbols.replace(/[^a-zA-Z0-9]/g,'')}`)?.classList.add('active'); document.getElementById(`${containerId}-label-${state}-${next}-${symbols.replace(/[^a-zA-Z0-9]/g,'')}`)?.classList.add('active'); } } await sleep(800); currentStates.forEach(s => document.getElementById(`${containerId}-state-${s}`)?.classList.remove('active')); clearAllHighlights(); if(nextStatesDirect.length === 0) return false; currentStates = epsilonClosure(nextStatesDirect, automaton.transitions); currentStates.forEach(s => document.getElementById(`${containerId}-state-${s}`)?.classList.add('active')); await sleep(800); } return currentStates.some(s => automaton.finalStates.includes(s)); }
+
+        // --- EVENT LISTENERS ---
+        document.getElementById('convertBtn').addEventListener('click', () => {
+            const regex = document.getElementById('regex').value;
+            if (!regex) { alert("Please enter a regular expression."); return; }
+
+            try {
+                // Reset positions for new conversion
+                statePositions.nfa = {}; statePositions.dfa = {}; statePositions.minDfa = {};
+
+                const formattedRegex = formatRegex(regex);
+                const postfix = infixToPostfix(formattedRegex);
+                nfa = postfixToNfa(postfix);
+
+                // Build alphabet directly from NFA transitions
+                alphabet = [];
+                for (const s in nfa.transitions) {
+                  for (const sym in nfa.transitions[s]) {
+                    if (sym !== EPSILON && !alphabet.includes(sym)) {
+                      alphabet.push(sym);
+                    }
+                  }
+                }
+                
+                dfa = nfaToDfa(nfa, alphabet);
+                minDfa = minimizeDfa(dfa, alphabet);
+
+                document.getElementById('nfaSection').style.display = 'block';
+                drawAutomaton(nfa, 'nfa-container', 'nfa');
+                document.getElementById('dfaSection').style.display = 'block';
+                drawAutomaton(dfa, 'dfa-container', 'dfa');
+                document.getElementById('minDfaSection').style.display = 'block';
+                drawAutomaton(minDfa, 'min-dfa-container', 'minDfa');
+                
+                document.getElementById('testSection').style.display = 'block';
+                document.getElementById('stringResult').style.display = 'none';
+
+            } catch (error) {
+                console.error("Error during conversion:", error);
+                alert("An error occurred. Please check your regular expression syntax. Details: " + error.message);
+            }
         });
-      }
-      function isAlpha(ch) {
-        return /^[a-zA-Z0-9]$/.test(ch);
-      }
-      function infixToPostfix(infix) {
-        let formatted = "";
-        for (let i = 0; i < infix.length; i++) {
-          const c1 = infix[i],
-            c2 = infix[i + 1];
-          formatted += c1;
-          if (i + 1 < infix.length) {
-            const isAtom1 = isAlpha(c1) || c1 === ")" || c1 === "*";
-            const isAtom2 = isAlpha(c2) || c2 === "(";
-            if (isAtom1 && isAtom2) formatted += ".";
-          }
-        }
-        const prec = { "|": 1, ".": 2, "*": 3 };
-        let out = "";
-        const stack = [];
-        for (const ch of formatted) {
-          if (isAlpha(ch)) out += ch;
-          else if (ch === "(") stack.push(ch);
-          else if (ch === ")") {
-            while (stack.length && stack.at(-1) !== "(") out += stack.pop();
-            if (!stack.length) throw new Error("Mismatched parentheses");
-            stack.pop();
-          } else {
-            while (
-              stack.length &&
-              stack.at(-1) !== "(" &&
-              prec[ch] <= prec[stack.at(-1)]
-            )
-              out += stack.pop();
-            stack.push(ch);
-          }
-        }
-        while (stack.length) {
-          if (stack.at(-1) === "(") throw new Error("Mismatched parentheses");
-          out += stack.pop();
-        }
-        return out;
-      }
-
-      // ---------- Thompson NFA & Conversions (CORRECTED) ----------
-      function postfixToNFA(postfix) {
-        stateCounter = 0;
-        const stack = [];
-        const alphabet = new Set();
-        for (const ch of postfix) if (isAlpha(ch)) alphabet.add(ch);
-
-        for (const ch of postfix) {
-          if (isAlpha(ch)) {
-            const s = new State();
-            const a = new State();
-            stack.push({
-              start: s,
-              accept: a,
-              states: [s, a],
-              transitions: [new Transition(s, a, ch)],
-            });
-          } else if (ch === ".") {
-            const n2 = stack.pop();
-            const n1 = stack.pop();
-            n1.accept.isAccept = false;
-            const trans = [
-              ...n1.transitions,
-              ...n2.transitions,
-              new Transition(n1.accept, n2.start, "ε"),
-            ];
-            stack.push({
-              start: n1.start,
-              accept: n2.accept,
-              states: [...n1.states, ...n2.states],
-              transitions: trans,
-            });
-          } else if (ch === "|") {
-            const n2 = stack.pop();
-            const n1 = stack.pop();
-            const s = new State();
-            const a = new State();
-            n1.accept.isAccept = false;
-            n2.accept.isAccept = false;
-            const trans = [
-              ...n1.transitions,
-              ...n2.transitions,
-              new Transition(s, n1.start, "ε"),
-              new Transition(s, n2.start, "ε"),
-              new Transition(n1.accept, a, "ε"),
-              new Transition(n2.accept, a, "ε"),
-            ];
-            stack.push({
-              start: s,
-              accept: a,
-              states: [...n1.states, ...n2.states, s, a],
-              transitions: trans,
-            });
-          } else if (ch === "*") {
-            const n1 = stack.pop();
-            const s = new State();
-            const a = new State();
-            n1.accept.isAccept = false;
-            const trans = [
-              ...n1.transitions,
-              new Transition(s, a, "ε"),
-              new Transition(s, n1.start, "ε"),
-              new Transition(n1.accept, n1.start, "ε"),
-              new Transition(n1.accept, a, "ε"),
-            ];
-            stack.push({
-              start: s,
-              accept: a,
-              states: [...n1.states, s, a],
-              transitions: trans,
-            });
-          }
-        }
-        const n = stack.pop();
-        const N = new NFA(n.start, n.accept);
-        N.states = new Set(n.states);
-        N.transitions = n.transitions;
-        N.alphabet = alphabet;
-        N.acceptState.isAccept = true;
-        return N;
-      }
-
-      function getEpsilonClosure(states, transitions) {
-        const closure = new Set(states);
-        const st = Array.from(states);
-        while (st.length) {
-          const s = st.pop();
-          for (const t of transitions)
-            if (t.from === s && t.symbol === "ε" && !closure.has(t.to)) {
-              closure.add(t.to);
-              st.push(t.to);
-            }
-        }
-        return closure;
-      }
-      function move(states, symbol, transitions) {
-        const next = new Set();
-        for (const s of Array.from(states))
-          for (const t of transitions)
-            if (t.from === s && t.symbol === symbol) next.add(t.to);
-        return next;
-      }
-      function nfaToDfa(nfa) {
-        stateCounter = 0;
-        const dfa = new DFA();
-        dfa.alphabet = nfa.alphabet;
-        const startClosure = getEpsilonClosure(
-          new Set([nfa.startState]),
-          nfa.transitions
-        );
-        dfa.startState = new DFAState(startClosure);
-        const work = [dfa.startState];
-        const map = new Map([[dfa.startState.label, dfa.startState]]);
-        while (work.length) {
-          const cur = work.shift();
-          for (const sym of nfa.alphabet) {
-            const targetClosure = getEpsilonClosure(
-              move(cur.nfaStates, sym, nfa.transitions),
-              nfa.transitions
-            );
-            if (!targetClosure.size) continue;
-            const label = `{${Array.from(targetClosure)
-              .map((s) => s.id)
-              .sort((a, b) => a - b)
-              .join(",")}}`;
-            let tgt = map.get(label);
-            if (!tgt) {
-              tgt = new DFAState(targetClosure);
-              map.set(label, tgt);
-              work.push(tgt);
-            }
-            dfa.transitions.push(new DFATransition(cur, tgt, sym));
-          }
-        }
-        dfa.states = Array.from(map.values());
-        return dfa;
-      }
-
-      function minimizeDFA(dfa) {
-        stateCounter = 0;
-        const alpha = Array.from(dfa.alphabet);
-        const states = dfa.states;
-
-        const go = new Map();
-        states.forEach((s) => {
-          const m = new Map();
-          alpha.forEach((a) => {
-            const t =
-              dfa.transitions.find((tr) => tr.from === s && tr.symbol === a)
-                ?.to || null;
-            m.set(a, t);
-          });
-          go.set(s, m);
+        
+        document.getElementById('checkBtn').addEventListener('click', () => {
+            const testString = document.getElementById('testString').value;
+            const resultBox = document.getElementById('stringResult');
+            if (!minDfa) { alert("Please generate the automata first."); return; }
+            clearAllHighlights();
+            const isAccepted = simulateDfa(minDfa, testString);
+            resultBox.textContent = isAccepted ? `String "${testString}" is Accepted` : `String "${testString}" is Rejected`;
+            resultBox.className = 'result-box mt-4 ' + (isAccepted ? 'accepted' : 'rejected');
+            resultBox.style.display = 'block';
         });
 
-        let P = [
-          new Set(states.filter((s) => s.isAccept)),
-          new Set(states.filter((s) => !s.isAccept)),
-        ].filter((s) => s.size);
-        let W = [...P];
-
-        while (W.length) {
-          const A = W.pop();
-          for (const a of alpha) {
-            const X = new Set(states.filter((s) => A.has(go.get(s)?.get(a))));
-            const Pnext = [];
-            for (const Y of P) {
-              const inter = new Set(Array.from(Y).filter((s) => X.has(s)));
-              const diff = new Set(Array.from(Y).filter((s) => !X.has(s)));
-              if (inter.size && diff.size) {
-                Pnext.push(inter, diff);
-                const idx = W.findIndex((s) => s === Y);
-                if (idx > -1) W.splice(idx, 1, inter, diff);
-                else W.push(inter.size <= diff.size ? inter : diff);
-              } else {
-                Pnext.push(Y);
-              }
-            }
-            P = Pnext;
-          }
-        }
-
-        const min = new DFA();
-        min.alphabet = dfa.alphabet;
-        const repOf = new Map();
-        const blockToState = new Map();
-        for (const block of P) {
-          const mstate = new DFAState(block, true);
-          blockToState.set(block, mstate);
-          for (const s of block) repOf.set(s, block);
-          if (block.has(dfa.startState)) min.startState = mstate;
-        }
-
-        for (const block of P) {
-          const from = blockToState.get(block);
-          const rep = Array.from(block)[0];
-          for (const a of alpha) {
-            const toOld = go.get(rep)?.get(a);
-            if (toOld) {
-              const to = blockToState.get(repOf.get(toOld));
-              min.transitions.push(new DFATransition(from, to, a));
-            }
-          }
-        }
-        min.states = Array.from(blockToState.values());
-        return min;
-      }
-
-      // ---------- FA → Regex (state elimination with history) ----------
-      function faToRegex(fa) {
-        let states = fa.states.map((s) => ({ ...s }));
-        let transitions = fa.transitions.map((t) => ({
-          from: t.from.label,
-          to: t.to.label,
-          label: t.symbol,
-        }));
-
-        const newStart = new State("S_start");
-        const newFinal = new State("S_final");
-        newFinal.isAccept = true;
-
-        transitions.push({
-          from: newStart.label,
-          to: fa.startState.label,
-          label: "ε",
-        });
-        states.forEach((s) => {
-          if (s.isAccept)
-            transitions.push({ from: s.label, to: newFinal.label, label: "ε" });
-        });
-        states.push(newStart, newFinal);
-
-        const history = [
-          {
-            states: JSON.parse(JSON.stringify(states)),
-            transitions: JSON.parse(JSON.stringify(transitions)),
-          },
-        ];
-
-        const statesToRip = fa.states.map((s) => s.label);
-        for (const ripLabel of statesToRip) {
-          const incoming = transitions.filter((t) => t.to === ripLabel);
-          const outgoing = transitions.filter((t) => t.from === ripLabel);
-          const selfLoop = transitions.find(
-            (t) => t.from === ripLabel && t.to === ripLabel
-          );
-
-          const Rloop = selfLoop ? star(selfLoop.label) : "ε";
-
-          for (const inT of incoming) {
-            for (const outT of outgoing) {
-              if (inT.from === ripLabel || outT.to === ripLabel) continue;
-              let composed = cat(cat(inT.label, Rloop), outT.label);
-              if (composed === "") composed = "ε";
-
-              const existing = transitions.find(
-                (t) => t.from === inT.from && t.to === outT.to
-              );
-              if (existing) existing.label = alt(existing.label, composed);
-              else
-                transitions.push({
-                  from: inT.from,
-                  to: outT.to,
-                  label: composed,
-                });
-            }
-          }
-
-          transitions = transitions.filter(
-            (t) => t.from !== ripLabel && t.to !== ripLabel
-          );
-          states = states.filter((s) => s.label !== ripLabel);
-          history.push({
-            states: JSON.parse(JSON.stringify(states)),
-            transitions: JSON.parse(JSON.stringify(transitions)),
-          });
-        }
-
-        const finalEdge = transitions.find(
-          (t) => t.from === newStart.label && t.to === newFinal.label
-        );
-        return { history, finalRegex: finalEdge ? finalEdge.label : "∅" };
-      }
-
-      // ---------- Visualization ----------
-      class AutomatonVisualizer {
-        constructor(canvasId, automaton, isGNFA = false) {
-          this.canvas = document.getElementById(canvasId);
-          this.ctx = this.canvas.getContext("2d");
-          this.automaton = automaton;
-          this.isDFA = automaton instanceof DFA;
-          this.isNFA = automaton instanceof NFA;
-          this.isGNFA = isGNFA;
-          this.draggedState = null;
-          this.hoveredState = null;
-          this.simulationPath = [];
-          this.currentStates = new Set();
-          this.animationFrameId = null;
-          this.animationTimer = null;
-          this.init();
-        }
-        init() {
-          this.resizeCanvas();
-          this.initializePositions();
-          this.addEventListeners();
-          this.animate();
-        }
-        resizeCanvas() {
-          const parent = this.canvas.parentElement;
-          this.canvas.width = parent.clientWidth;
-          this.canvas.height = Math.max(400, parent.clientWidth / 2);
-        }
-        initializePositions() {
-          const states = Array.from(this.automaton.states);
-          const { width, height } = this.canvas;
-          const levels = new Map();
-          const visited = new Set();
-          const queue = [{ state: this.automaton.startState, level: 0 }];
-          if (this.automaton.startState) {
-            visited.add(this.automaton.startState);
-            levels.set(this.automaton.startState, 0);
-          }
-          let head = 0;
-          while (head < queue.length) {
-            const { state, level } = queue[head++];
-            const trans = this.automaton.transitions.filter((t) =>
-              this.isGNFA ? t.from.label === state.label : t.from === state
-            );
-            for (const t of trans) {
-              const toNode = states.find((s) =>
-                this.isGNFA ? s.label === t.to : s.id === t.to.id
-              );
-              if (toNode && !visited.has(toNode)) {
-                visited.add(toNode);
-                levels.set(toNode, level + 1);
-                queue.push({ state: toNode, level: level + 1 });
-              }
-            }
-          }
-          const maxLevel = Math.max(0, ...Array.from(levels.values()));
-          const levelCounts = new Map();
-          states.forEach((st) => {
-            const L = levels.get(st) ?? maxLevel + 1;
-            levelCounts.set(L, (levelCounts.get(L) || 0) + 1);
-          });
-          const levelYPos = new Map();
-          states.forEach((st) => {
-            const L = levels.get(st) ?? maxLevel + 1;
-            const total = levelCounts.get(L);
-            const cur = levelYPos.get(L) || 1;
-            st.x = (L + 1) * (width / (maxLevel + 3));
-            st.y = cur * (height / (total + 1));
-            levelYPos.set(L, cur + 1);
-          });
-        }
-        addEventListeners() {
-          const tooltip = document.getElementById("tooltip");
-          this.canvas.addEventListener("mousedown", (e) => {
-            const pos = this.getMousePos(e);
-            const states = Array.from(this.automaton.states);
-            for (const st of states)
-              if (Math.hypot(pos.x - st.x, pos.y - st.y) < 30) {
-                this.draggedState = st;
-                this.canvas.style.cursor = "grabbing";
-                break;
-              }
-          });
-          this.canvas.addEventListener("mousemove", (e) => {
-            const pos = this.getMousePos(e);
-            if (this.draggedState) {
-              this.draggedState.x = pos.x;
-              this.draggedState.y = pos.y;
-            }
-            this.hoveredState = null;
-            const states = Array.from(this.automaton.states);
-            for (const st of states)
-              if (Math.hypot(pos.x - st.x, pos.y - st.y) < 30) {
-                this.hoveredState = st;
-                break;
-              }
-            if (this.hoveredState && this.hoveredState.tooltip) {
-              tooltip.style.display = "block";
-              tooltip.style.left = `${e.clientX + 15}px`;
-              tooltip.style.top = `${e.clientY + 15}px`;
-              tooltip.innerText = this.hoveredState.tooltip;
-            } else tooltip.style.display = "none";
-            this.canvas.style.cursor = this.hoveredState
-              ? "pointer"
-              : this.draggedState
-              ? "grabbing"
-              : "grab";
-          });
-          this.canvas.addEventListener(
-            "mouseup",
-            () => (this.draggedState = null)
-          );
-          this.canvas.addEventListener("mouseout", () => {
-            this.draggedState = null;
-            this.hoveredState = null;
-            document.getElementById("tooltip").style.display = "none";
-          });
-        }
-        playAnimation(testString) {
-          if (this.animationTimer) clearInterval(this.animationTimer);
-          this.simulationPath = [];
-          let step = 0;
-
-          if (this.isNFA) {
-            this.currentStates = getEpsilonClosure(
-              new Set([this.automaton.startState]),
-              this.automaton.transitions
-            );
-          } else {
-            this.currentStates = new Set([this.automaton.startState]);
-          }
-
-          this.animationTimer = setInterval(() => {
-            if (step >= testString.length) {
-              clearInterval(this.animationTimer);
-              this.animationTimer = null;
-              return;
-            }
-
-            const char = testString[step];
-
-            if (this.isNFA) {
-              const moved = move(
-                this.currentStates,
-                char,
-                this.automaton.transitions
-              );
-              this.simulationPath = this.automaton.transitions.filter(
-                (t) => this.currentStates.has(t.from) && t.symbol === char
-              );
-              this.currentStates = getEpsilonClosure(
-                moved,
-                this.automaton.transitions
-              );
+        async function handleAnimation(automaton, input, containerId, buttonId, type) {
+            const button = document.getElementById(buttonId);
+            if (!automaton) { alert("Please generate the automata first."); return; }
+            
+            button.disabled = true;
+            button.textContent = 'Animating...';
+            
+            let isAccepted;
+            if (type === 'nfa') {
+                isAccepted = await animateNfa(automaton, input, containerId);
             } else {
-              // DFA
-              const fromState = Array.from(this.currentStates)[0];
-              const transition = this.automaton.transitions.find(
-                (t) => t.from === fromState && t.symbol === char
-              );
-              if (transition) {
-                this.currentStates = new Set([transition.to]);
-                this.simulationPath = [transition];
-              } else {
-                this.currentStates = new Set();
-                this.simulationPath = [];
-                clearInterval(this.animationTimer);
-              }
+                isAccepted = await animateDfa(automaton, input, containerId);
             }
 
-            step++;
-          }, 1000);
+            const resultBox = document.getElementById('stringResult');
+            resultBox.textContent = isAccepted ? `String "${input}" is Accepted` : `String "${input}" is Rejected`;
+            resultBox.className = 'result-box mt-4 ' + (isAccepted ? 'accepted' : 'rejected');
+            resultBox.style.display = 'block';
+            
+            button.disabled = false;
+            button.textContent = 'Animate';
         }
-        getMousePos(e) {
-          const r = this.canvas.getBoundingClientRect();
-          return { x: e.clientX - r.left, y: e.clientY - r.top };
-        }
-        animate() {
-          this.draw();
-          this.animationFrameId = requestAnimationFrame(() => this.animate());
-        }
-        destroy() {
-          if (this.animationFrameId)
-            cancelAnimationFrame(this.animationFrameId);
-          if (this.animationTimer) clearInterval(this.animationTimer);
-        }
-        draw() {
-          this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-          const states = Array.from(this.automaton.states);
-          const { transitions, startState } = this.automaton;
-          if (!states) return;
-          const radius =
-            this.isDFA || this.isGNFA ? (states.length > 10 ? 20 : 28) : 20;
-          this.ctx.textAlign = "center";
-          this.ctx.textBaseline = "middle";
-          const groups = new Map();
-          transitions.forEach((t) => {
-            const fromNode = states.find((s) =>
-              this.isGNFA ? s.label === t.from : s.id === t.from.id
-            );
-            const toNode = states.find((s) =>
-              this.isGNFA ? s.label === t.to : s.id === t.to.id
-            );
-            if (!fromNode || !toNode) return;
-            const key = `${fromNode.id}-${toNode.id}`;
-            if (!groups.has(key))
-              groups.set(key, { from: fromNode, to: toNode, labels: [] });
-            groups.get(key).labels.push(this.isGNFA ? t.label : t.symbol);
-          });
-          groups.forEach((g) => {
-            const { from: F, to: T, labels } = g;
-            const label = labels.join(", ");
-            const isHighlighted = this.simulationPath.some(
-              (p) => p.from.id === F.id && p.to.id === T.id
-            );
-            this.ctx.strokeStyle = isHighlighted ? "#fde047" : "#6b7280";
-            this.ctx.lineWidth = isHighlighted ? 3 : 1.5;
-            this.ctx.beginPath();
-            const dx = T.x - F.x,
-              dy = T.y - F.y;
-            const angle = Math.atan2(dy, dx);
-            if (F === T) {
-              const loopR = radius * 1.5;
-              this.ctx.arc(
-                F.x,
-                F.y - loopR,
-                loopR,
-                Math.PI * 0.7,
-                Math.PI * 2.3
-              );
-              this.ctx.stroke();
-              this.ctx.fillStyle = isHighlighted ? "#fde047" : "#d1d5db";
-              this.ctx.font = this.isGNFA ? "10px Inter" : "14px Inter";
-              this.ctx.fillText(label, F.x, F.y - loopR * 2 - 10);
-            } else {
-              const midX = (F.x + T.x) / 2,
-                midY = (F.y + T.y) / 2;
-              const cpOffset = Math.min(60, Math.hypot(dx, dy) / 4);
-              const cpX = midX + cpOffset * Math.sin(angle),
-                cpY = midY - cpOffset * Math.cos(angle);
-              this.ctx.moveTo(F.x, F.y);
-              this.ctx.quadraticCurveTo(cpX, cpY, T.x, T.y);
-              this.ctx.stroke();
-              const labelPoint = {
-                x: 0.25 * F.x + 0.5 * cpX + 0.25 * T.x,
-                y: 0.25 * F.y + 0.5 * cpY + 0.25 * T.y,
-              };
-              const tangentAngle = Math.atan2(T.y - F.y, T.x - F.x);
-              const labelOffsetX = -Math.sin(tangentAngle) * 15;
-              const labelOffsetY = Math.cos(tangentAngle) * 15;
-              this.ctx.fillStyle = isHighlighted ? "#fde047" : "#d1d5db";
-              this.ctx.font = this.isGNFA ? "10px Inter" : "14px Inter";
-              this.ctx.fillText(
-                label,
-                labelPoint.x + labelOffsetX,
-                labelPoint.y + labelOffsetY
-              );
-              this.ctx.save();
-              this.ctx.translate(T.x, T.y);
-              this.ctx.rotate(Math.atan2(T.y - cpY, T.x - cpX));
-              this.ctx.beginPath();
-              this.ctx.moveTo(-radius, 0);
-              this.ctx.lineTo(-radius - 10, -5);
-              this.ctx.moveTo(-radius, 0);
-              this.ctx.lineTo(-radius - 10, 5);
-              this.ctx.stroke();
-              this.ctx.restore();
-            }
-          });
-          states.forEach((s) => {
-            this.ctx.beginPath();
-            this.ctx.arc(s.x, s.y, radius, 0, 2 * Math.PI);
-            const isCurrent = this.currentStates.has(s);
-            const isHover = this.hoveredState === s;
-            let color =
-              s.label === "S_start" || s === startState
-                ? "#059669"
-                : s.isAccept
-                ? "#1e40af"
-                : "#374151";
-            this.ctx.fillStyle = isHover ? brighten(color, 1.2) : color;
-            this.ctx.fill();
-            if (isCurrent) {
-              this.ctx.shadowColor = "#fde047";
-              this.ctx.shadowBlur = 20;
-              this.ctx.strokeStyle = "#fde047";
-              this.ctx.lineWidth = 3;
-              this.ctx.stroke();
-              this.ctx.shadowBlur = 0;
-            }
-            if (s.isAccept) {
-              this.ctx.strokeStyle = "#93c5fd";
-              this.ctx.lineWidth = 2;
-              this.ctx.beginPath();
-              this.ctx.arc(s.x, s.y, radius - 5, 0, 2 * Math.PI);
-              this.ctx.stroke();
-            }
-            this.ctx.fillStyle = "white";
-            this.ctx.font =
-              (this.isDFA ? (s.isMinimized ? "14px" : "11px") : "14px") +
-              " Inter";
-            this.ctx.fillText(s.label, s.x, s.y);
-          });
-          const effStart = this.isGNFA
-            ? states.find((s) => s.label === "S_start")
-            : startState;
-          if (effStart) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(effStart.x - radius - 30, effStart.y);
-            this.ctx.lineTo(effStart.x - radius, effStart.y);
-            this.ctx.strokeStyle = "#9ca3af";
-            this.ctx.lineWidth = 2;
-            this.ctx.stroke();
-            this.ctx.lineTo(effStart.x - radius - 10, effStart.y - 5);
-            this.ctx.moveTo(effStart.x - radius, effStart.y);
-            this.ctx.lineTo(effStart.x - radius - 10, effStart.y + 5);
-            this.ctx.stroke();
-          }
-        }
-      }
-      // --- MAIN APP LOGIC ---
-      let visualizers = {};
-      function main() {
-        Object.values(visualizers).forEach((v) => v && v.destroy());
-        visualizers = {};
-        document.getElementById("error-message").textContent = "";
-        const regex = document.getElementById("regex").value;
-        if (!regex) return;
-        try {
-          const processed = preprocessRegex(regex);
-          const postfix = infixToPostfix(processed);
-          const nfa = postfixToNFA(postfix);
-          const dfa = nfaToDfa(nfa);
-          const minimized = minimizeDFA(dfa);
-          visualizers.nfa = new AutomatonVisualizer("nfaCanvas", nfa);
-          visualizers.dfa = new AutomatonVisualizer("dfaCanvas", dfa);
-          visualizers.minimizedDfa = new AutomatonVisualizer(
-            "minimizedDfaCanvas",
-            minimized
-          );
-          updateValidation();
-        } catch (e) {
-          console.error(e);
-          document.getElementById("error-message").textContent = e.message;
-          document.getElementById("result").textContent = "";
-        }
-      }
-      function updateValidation() {
-        const test = document.getElementById("testString").value;
-        const viz = visualizers.minimizedDfa;
-        if (!viz) return;
-        const dfa = viz.automaton;
-        let cur = dfa.startState;
-        let path = [];
-        let failAt = -1;
-        for (let i = 0; i < test.length; i++) {
-          const sym = test[i];
-          const tr = dfa.transitions.find(
-            (t) => t.from === cur && t.symbol === sym
-          );
-          if (tr) {
-            path.push(tr);
-            cur = tr.to;
-          } else {
-            failAt = i;
-            cur = null;
-            break;
-          }
-        }
-        viz.simulationPath = []; // Clear previous live path
-        viz.currentStates = new Set(cur ? [cur] : []); // For live validation highlight
-        const accepted = cur ? !!cur.isAccept : false;
-        const res = document.getElementById("result");
-        res.textContent = accepted ? "✅ Accepted" : "❌ Rejected";
-        res.className = `font-bold text-2xl h-10 flex items-center justify-center ${
-          accepted ? "text-green-400" : "text-red-400"
-        }`;
-        const note = document.getElementById("result-note");
-        note.textContent = accepted
-          ? ""
-          : failAt >= 0
-          ? `stuck on symbol '${test[failAt]}' at position ${failAt}`
-          : "";
-      }
 
-      // listeners
-      document.getElementById("run").addEventListener("click", main);
-      document
-        .getElementById("testString")
-        .addEventListener("input", updateValidation);
-      document.querySelectorAll(".play-animation-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const vizKey = btn.dataset.vizKey;
-          const viz = visualizers[vizKey];
-          if (viz) {
-            const testString = document.getElementById("testString").value;
-            viz.playAnimation(testString);
-          }
+        document.getElementById('animateNfaBtn').addEventListener('click', () => {
+            const testString = document.getElementById('testString').value;
+            handleAnimation(nfa, testString, 'nfa-container', 'animateNfaBtn', 'nfa');
         });
-      });
+        document.getElementById('animateDfaBtn').addEventListener('click', () => {
+            const testString = document.getElementById('testString').value;
+            handleAnimation(dfa, testString, 'dfa-container', 'animateDfaBtn', 'dfa');
+        });
+        document.getElementById('animateMinDfaBtn').addEventListener('click', () => {
+            const testString = document.getElementById('testString').value;
+            handleAnimation(minDfa, testString, 'min-dfa-container', 'animateMinDfaBtn', 'minDfa');
+        });
 
-      window.addEventListener("load", main);
-      window.addEventListener("resize", () =>
-        Object.values(visualizers).forEach((v) => v && v.resizeCanvas())
-      );
-      // Tab listeners
-      const tabs = {
-        reToFa: {
-          btn: document.getElementById("tab-re-to-fa"),
-          viz: document.getElementById("viz-re-to-fa"),
-          controls: document.getElementById("controls-re-to-fa"),
-        },
-        faToRe: {
-          btn: document.getElementById("tab-fa-to-re"),
-          viz: document.getElementById("viz-fa-to-re"),
-          controls: document.getElementById("controls-fa-to-re"),
-        },
-      };
-      tabs.reToFa.btn.addEventListener("click", () => {
-        tabs.reToFa.btn.classList.add("active");
-        tabs.faToRe.btn.classList.remove("active");
-        tabs.reToFa.viz.classList.add("active");
-        tabs.faToRe.viz.classList.remove("active");
-        tabs.reToFa.controls.classList.add("active");
-        tabs.faToRe.controls.classList.remove("active");
-      });
-      tabs.faToRe.btn.addEventListener("click", () => {
-        tabs.faToRe.btn.classList.add("active");
-        tabs.reToFa.btn.classList.remove("active");
-        tabs.faToRe.viz.classList.add("active");
-        tabs.reToFa.viz.classList.remove("active");
-        tabs.faToRe.controls.classList.add("active");
-        tabs.reToFa.controls.classList.remove("active");
-        if (!visualizers.gnfa) {
-          handleFaToReConversion();
-        }
-      });
     </script>
-  </body>
+</body>
 </html>
+
